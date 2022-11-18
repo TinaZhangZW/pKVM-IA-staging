@@ -647,6 +647,80 @@ static const struct file_operations dmar_perf_latency_fops = {
 	.release	= single_release,
 };
 
+static int qi_stat_dump_show(struct seq_file *m, void *unused)
+{
+	struct dmar_drhd_unit *drhd;
+	struct intel_iommu *iommu;
+	struct q_inval *qi;
+	unsigned long flags;
+	u64 total_cycles = 0, times = 0;
+
+	for_each_active_iommu(iommu, drhd) {
+		qi = iommu->qi;
+		if (!qi)
+			return 0;
+
+		raw_spin_lock_irqsave(&qi->q_lock, flags);
+		total_cycles = qi->total_cycles;
+		times = qi->times;
+		raw_spin_unlock_irqrestore(&qi->q_lock, flags);
+		if (times)
+			seq_printf(m, "total_cycles 0x%llx, times 0x%llx, ave 0x%llx\n",
+				   total_cycles, times, total_cycles/times);
+	}
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(qi_stat_dump);
+
+static int qi_stat_active(void *data, u64 val)
+{
+	struct dmar_drhd_unit *drhd;
+	struct intel_iommu *iommu;
+	struct q_inval *qi;
+	unsigned long flags;
+
+	for_each_active_iommu(iommu, drhd) {
+		qi = iommu->qi;
+		if (!qi) {
+			printk("%s, qi is null\n", __func__);
+			return 0;
+		}
+
+		raw_spin_lock_irqsave(&qi->q_lock, flags);
+		qi->enable_stat = true;
+		raw_spin_unlock_irqrestore(&qi->q_lock, flags);
+	}
+
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(qi_stat_active_fops, NULL, qi_stat_active, "0x%llx\n");
+
+static int qi_stat_reset(void *data, u64 val)
+{
+	struct dmar_drhd_unit *drhd;
+	struct intel_iommu *iommu;
+	struct q_inval *qi;
+	unsigned long flags;
+
+	for_each_active_iommu(iommu, drhd) {
+		qi = iommu->qi;
+		if (!qi) {
+			printk("%s, qi is null\n", __func__);
+			return 0;
+		}
+
+		raw_spin_lock_irqsave(&qi->q_lock, flags);
+		qi->enable_stat = false;
+		qi->total_cycles = 0;
+		qi->times = 0;
+		raw_spin_unlock_irqrestore(&qi->q_lock, flags);
+	}
+
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(qi_stat_reset_fops, NULL, qi_stat_reset, "0x%llx\n");
+
 void __init intel_iommu_debugfs_init(void)
 {
 	struct dentry *intel_iommu_debug = debugfs_create_dir("intel",
@@ -667,4 +741,10 @@ void __init intel_iommu_debugfs_init(void)
 #endif
 	debugfs_create_file("dmar_perf_latency", 0644, intel_iommu_debug,
 			    NULL, &dmar_perf_latency_fops);
+	debugfs_create_file("qi_stat_reset", 0644, intel_iommu_debug, NULL,
+						&qi_stat_reset_fops);
+	debugfs_create_file("qi_stat_dump", 0644, intel_iommu_debug, NULL,
+						&qi_stat_dump_fops);
+	debugfs_create_file("qi_stat_active", 0644, intel_iommu_debug, NULL,
+						&qi_stat_active_fops);
 }

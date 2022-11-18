@@ -987,7 +987,9 @@ static int create_qi_desc(struct pkvm_iommu *iommu)
 		iommu_put_page(qi->desc);
 		return -ENOMEM;
 	}
-
+	qi->enable_stat = false;
+	qi->total_cycles = 0;
+	qi->times = 0;
 	enable_qi(iommu);
 	return 0;
 }

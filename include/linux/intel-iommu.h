@@ -443,6 +443,9 @@ struct q_inval {
 	int             free_head;      /* first free entry */
 	int             free_tail;      /* last free entry */
 	int             free_cnt;
+	bool		enable_stat;
+	u64			total_cycles;
+	u64			times;
 };
 
 struct dmar_pci_notify_info;

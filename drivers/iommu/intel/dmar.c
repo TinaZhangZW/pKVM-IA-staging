@@ -1350,6 +1350,7 @@ int qi_submit_sync(struct intel_iommu *iommu, struct qi_desc *desc,
 	int offset, shift;
 	int rc, i;
 	u64 type;
+	u64 temp = 0;
 
 	if (!qi)
 		return 0;
@@ -1410,12 +1411,17 @@ restart:
 	qi->free_head = (qi->free_head + count + 1) % QI_LENGTH;
 	qi->free_cnt -= count + 1;
 
+	if (qi->enable_stat)
+		temp = rdtsc();
 	/*
 	 * update the HW tail register indicating the presence of
 	 * new descriptors.
 	 */
 	dmar_writel(iommu, DMAR_IQT_REG, qi->free_head << shift);
-
+	if (qi->enable_stat) {
+		qi->total_cycles += rdtsc() - temp;
+		qi->times++;
+	}
 	while (qi->desc_status[wait_index] != QI_DONE) {
 		/*
 		 * We will leave the interrupts disabled, to prevent interrupt
